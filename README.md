@@ -46,15 +46,28 @@ Follow the detailed authentication setup guide in [`docs/auth_setup_guide.md`](d
 
 ### Step 2: OAuth Authorization
 
-After setting up credentials, you need to authorize the application:
+After setting up credentials, you need to authorize the application.
+
+**Option 1: Interactive Authorization (Recommended)**
+
+Run the interactive authorization script:
+```bash
+npm run authorize
+```
+
+This will:
+1. Display the authorization URL
+2. Prompt you to visit the URL and authorize the app
+3. Ask you to paste the authorization code
+4. Automatically save the token
+
+**Option 2: Manual Two-Step Process**
+
+If you prefer a manual approach:
 
 1. **Get the authorization URL:**
    ```bash
-   npm run dev -- scripts/show-url.ts
-   ```
-   Or if using the compiled version:
-   ```bash
-   node dist/scripts/show-url.js
+   npm run show-url
    ```
 
 2. **Visit the URL** in your browser and authorize the application
@@ -63,14 +76,10 @@ After setting up credentials, you need to authorize the application:
 
 4. **Save the token:**
    ```bash
-   npm run dev -- scripts/save-token.ts <authorization_code>
-   ```
-   Or:
-   ```bash
-   node dist/scripts/save-token.js <authorization_code>
+   npm run save-token -- <authorization_code>
    ```
 
-This will create a `token.json` file that stores your authentication credentials.
+Both methods will create a `token.json` file that stores your authentication credentials.
 
 ### Step 3: Gemini API Key
 

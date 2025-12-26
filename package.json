@@ -8,7 +8,12 @@
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "lint": "eslint src/**/*.ts",
-    "test": "jest"
+    "test": "jest",
+    "authorize": "ts-node src/scripts/authorize.ts",
+    "show-url": "ts-node src/scripts/show-url.ts",
+    "save-token": "ts-node src/scripts/save-token.ts",
+    "init-labels": "ts-node src/scripts/init-labels.ts",
+    "test-models": "ts-node src/scripts/test-models.ts"
   },
   "keywords": [
     "gmail",
