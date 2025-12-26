@@ -8,7 +8,7 @@ An intelligent email automation tool that uses Large Language Models (LLMs) to a
 - 📧 **Automatic Labeling**: Automatically creates and applies category labels to unread emails
 - ⚡ **Batch Processing**: Process a specific number of emails or all unread emails at once
 - 🔄 **Smart Filtering**: Skips emails that are already categorized to avoid duplicate processing
-- 🏷️ **Predefined Categories**: 18 predefined categories covering common email types
+- 🏷️ **Predefined Categories**: 17 predefined categories covering common email types
 - 🔐 **Secure Authentication**: Uses OAuth2 for secure Gmail API access
 
 ## Prerequisites
