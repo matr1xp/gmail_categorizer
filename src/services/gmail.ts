@@ -1,6 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import { google, gmail_v1 } from 'googleapis';
-import { LABEL_DEFINITIONS, LabelName } from '../config/labels';
+import { LABEL_DEFINITIONS } from '../config/labels';
 
 export async function getUnreadMessages(auth: OAuth2Client, limit: number = 20): Promise<gmail_v1.Schema$Message[]> {
   const gmail = google.gmail({ version: 'v1', auth });
