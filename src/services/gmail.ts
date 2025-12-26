@@ -16,18 +16,18 @@ export async function getUnreadMessages(auth: OAuth2Client, limit: number = 20):
       
       const maxResults = Math.min(remaining, 500); // API max is 500
 
-      const res: any = await gmail.users.messages.list({
+      const res = await gmail.users.messages.list({
         userId: 'me',
         q: 'is:unread',
         maxResults: maxResults,
         pageToken: nextPageToken
-      });
+      }) as { data: gmail_v1.Schema$ListMessagesResponse };
 
       const pageMessages = res.data.messages || [];
       if (pageMessages.length === 0) break;
 
       messages = messages.concat(pageMessages);
-      nextPageToken = res.data.nextPageToken;
+      nextPageToken = res.data.nextPageToken ?? undefined;
       
       console.log(`  Fetched ${messages.length} message IDs so far...`);
 

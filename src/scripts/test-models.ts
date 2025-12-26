@@ -25,8 +25,9 @@ async function main() {
             const result = await model.generateContent("Hello");
             console.log(`SUCCESS: ${m} works. Response: ${result.response.text()}`);
             break; // Found one
-          } catch (e: any) {
-              console.log(`FAILED: ${m}. Error: ${e.message}`);
+          } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              console.log(`FAILED: ${m}. Error: ${msg}`);
           }
       }
 
