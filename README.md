@@ -1,12 +1,12 @@
 # Gmail Categorizer
 
-An intelligent email automation tool that uses Large Language Models (LLMs) to automatically categorize unread emails in your Gmail inbox. The tool analyzes email subjects and snippets, then applies appropriate labels to help you organize your inbox efficiently.
+An intelligent email automation tool that uses Large Language Models (LLMs) to automatically categorize the received emails in your Gmail account (skipping any already categorized). The tool analyzes email subjects and snippets, then applies appropriate labels to help you organize your inbox efficiently.
 
 ## Features
 
 - 🤖 **AI-Powered Categorization**: Uses Google's Gemini 2.0 Flash model to intelligently categorize emails
-- 📧 **Automatic Labeling**: Automatically creates and applies category labels to unread emails
-- ⚡ **Batch Processing**: Process a specific number of emails or all unread emails at once
+- 📧 **Automatic Labeling**: Automatically creates and applies category labels to uncategorized emails
+- ⚡ **Batch Processing**: Process a specific number of emails or all uncategorized emails at once
 - 🔄 **Smart Filtering**: Skips emails that are already categorized to avoid duplicate processing
 - 🏷️ **Predefined Categories**: 17 predefined categories covering common email types
 - 🔐 **Secure Authentication**: Uses OAuth2 for secure Gmail API access
@@ -94,7 +94,7 @@ Both methods will create a `token.json` file that stores your authentication cre
 
 ### Basic Usage
 
-Process unread emails (default: 20 emails):
+Process uncategorized emails (default: 20 emails):
 ```bash
 npm start
 ```
@@ -106,7 +106,7 @@ npm run dev
 
 ### Command Line Options
 
-**Process all unread emails:**
+**Process all uncategorized emails:**
 ```bash
 npm start -- --all
 ```
@@ -118,10 +118,10 @@ npm start -- --limit 50
 
 **Examples:**
 ```bash
-# Process 10 unread emails
+# Process 10 uncategorized emails
 npm start -- --limit 10
 
-# Process all unread emails
+# Process all uncategorized emails
 npm start -- --all
 
 # Development mode with limit
@@ -156,7 +156,7 @@ Labels are automatically created in your Gmail account if they don't already exi
 
 1. **Authentication**: The tool authenticates with Gmail using OAuth2 credentials
 2. **Label Setup**: Ensures all category labels exist in your Gmail account
-3. **Email Fetching**: Retrieves unread emails from your inbox
+3. **Email Fetching**: Pages through all received mail (excluding sent and drafts), skipping emails that already have a category label
 4. **Categorization**: For each uncategorized email, the tool:
    - Extracts the subject and snippet
    - Sends it to the Gemini API for categorization

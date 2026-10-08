@@ -1,10 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { LABEL_DEFINITIONS, LabelName } from '../config/labels';
+import { withRetry, shortError, QuotaExhaustedError } from './retry';
 import dotenv from 'dotenv';
 dotenv.config();
 
 // Access your API key as an environment variable (see "Set up your API key" above)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// Override with GEMINI_MODEL in .env when Google retires a model
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 export async function categorizeEmail(subject: string, snippet: string): Promise<LabelName | null> {
     if (!process.env.GEMINI_API_KEY) {
@@ -12,7 +16,7 @@ export async function categorizeEmail(subject: string, snippet: string): Promise
         return null;
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
     const labelsDesc = Object.entries(LABEL_DEFINITIONS)
         .map(([name, desc]) => `- ${name}: ${desc}`)
@@ -30,7 +34,7 @@ Reply ONLY with the exact category name. If none fit perfectly, choose 'System N
     `.trim();
 
     try {
-        const result = await model.generateContent(prompt);
+        const result = await withRetry('Gemini', () => model.generateContent(prompt));
         const response = await result.response;
         const text = response.text().trim();
 
@@ -47,7 +51,9 @@ Reply ONLY with the exact category name. If none fit perfectly, choose 'System N
             return 'System Notification';
         }
     } catch (error) {
-        console.error('Error in categorization:', error);
+        // A used-up daily quota fails every remaining email, so stop the run
+        if (error instanceof QuotaExhaustedError) throw error;
+        console.error(`Error in categorization: ${shortError(error)}`);
         return null;
     }
 }

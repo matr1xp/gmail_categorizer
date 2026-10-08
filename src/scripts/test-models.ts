@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 dotenv.config();
+import { GEMINI_MODEL } from '../services/categorizer';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -16,7 +17,8 @@ async function main() {
       
       console.log("Testing model access...");
       
-      const modelsToTest = ['gemini-1.5-flash', 'gemini-pro', 'gemini-1.0-pro'];
+      // The model the categorizer uses (GEMINI_MODEL), then current fallbacks
+      const modelsToTest = [GEMINI_MODEL, 'gemini-flash-lite-latest', 'gemini-flash-latest'];
       
       for (const m of modelsToTest) {
           try {

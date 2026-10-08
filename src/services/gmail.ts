@@ -1,67 +1,79 @@
 import { OAuth2Client } from 'google-auth-library';
 import { google, gmail_v1 } from 'googleapis';
 import { LABEL_DEFINITIONS } from '../config/labels';
+import { withRetry, shortError, QuotaExhaustedError } from './retry';
 
-export async function getUnreadMessages(auth: OAuth2Client, limit: number = 20): Promise<gmail_v1.Schema$Message[]> {
+// All received mail; sent messages and drafts are not categorized
+const MESSAGE_QUERY = '-in:sent -in:drafts';
+
+export interface FetchStats {
+  scanned: number;
+  skipped: number;
+  failed: number;
+}
+
+// Yields up to `limit` messages (-1 = all) that don't carry any category label yet.
+// Messages are streamed batch by batch so labels get applied while paging continues,
+// and already-categorized messages don't count toward the limit.
+// Only Subject, snippet and labelIds are fetched (format: 'metadata') to keep memory flat.
+export async function* uncategorizedMessages(
+  auth: OAuth2Client,
+  categoryLabelIds: Set<string>,
+  limit: number,
+  stats: FetchStats
+): AsyncGenerator<gmail_v1.Schema$Message> {
   const gmail = google.gmail({ version: 'v1', auth });
-  let messages: gmail_v1.Schema$Message[] = [];
+  let yielded = 0;
   let nextPageToken: string | undefined = undefined;
+  const BATCH_SIZE = 10; // Parallel requests to speed up hydration
+  const isDone = () => limit !== -1 && yielded >= limit;
 
-  console.log(`Fetching unread messages (limit: ${limit === -1 ? 'ALL' : limit})...`);
+  console.log(`Fetching uncategorized messages (limit: ${limit === -1 ? 'ALL' : limit})...`);
 
   do {
-      // Calculate how many to fetch in this page
-      const remaining = limit === -1 ? 500 : limit - messages.length;
-      if (remaining <= 0) break;
-      
-      const maxResults = Math.min(remaining, 500); // API max is 500
-
-      const res = await gmail.users.messages.list({
+      const pageToken = nextPageToken;
+      const res = await withRetry('List messages', () => gmail.users.messages.list({
         userId: 'me',
-        q: 'is:unread',
-        maxResults: maxResults,
-        pageToken: nextPageToken
-      }) as { data: gmail_v1.Schema$ListMessagesResponse };
+        q: MESSAGE_QUERY,
+        maxResults: 500, // API max is 500
+        pageToken
+      })) as { data: gmail_v1.Schema$ListMessagesResponse };
 
       const pageMessages = res.data.messages || [];
       if (pageMessages.length === 0) break;
-
-      messages = messages.concat(pageMessages);
       nextPageToken = res.data.nextPageToken ?? undefined;
-      
-      console.log(`  Fetched ${messages.length} message IDs so far...`);
 
-  } while (nextPageToken && (limit === -1 || messages.length < limit));
+      for (let i = 0; i < pageMessages.length && !isDone(); i += BATCH_SIZE) {
+          const chunk = pageMessages.slice(i, i + BATCH_SIZE);
+          const results = await Promise.all(chunk.map(msg =>
+              msg.id ? withRetry(`Fetch ${msg.id}`, () => gmail.users.messages.get({
+                 userId: 'me',
+                 id: msg.id!,
+                 format: 'metadata',
+                 metadataHeaders: ['Subject']
+             })).then(r => r.data).catch(e => {
+                 if (e instanceof QuotaExhaustedError) throw e;
+                 console.error(`Failed to fetch message ${msg.id}: ${shortError(e)}`);
+                 stats.failed++;
+                 return null;
+             }) : Promise.resolve(null)
+          ));
 
-  console.log(`Hydrating ${messages.length} messages...`);
-  
-  const fullMessages: gmail_v1.Schema$Message[] = [];
-  const BATCH_SIZE = 10; // Parallel requests to speed up hydration
+          for (const m of results) {
+              if (!m || isDone()) continue;
+              stats.scanned++;
+              if ((m.labelIds || []).some(id => categoryLabelIds.has(id))) {
+                  stats.skipped++;
+              } else {
+                  yielded++;
+                  yield m;
+              }
+          }
+      }
 
-  for (let i = 0; i < messages.length; i += BATCH_SIZE) {
-      const chunk = messages.slice(i, i + BATCH_SIZE);
-      const promises = chunk.map(msg => 
-          msg.id ? gmail.users.messages.get({
-             userId: 'me',
-             id: msg.id,
-             format: 'full'
-         }).then(r => r.data).catch(e => {
-             console.error(`Failed to fetch message ${msg.id}`, e);
-             return null;
-         }) : Promise.resolve(null)
-      );
-      
-      const results = await Promise.all(promises);
-      results.forEach(m => {
-          if (m) fullMessages.push(m);
-      });
-      
-      // distinct logging to show progress
-       if ((i + BATCH_SIZE) % 50 === 0) process.stdout.write('.');
-  }
-  console.log('\nHydration complete.');
+      console.log(`  Scanned ${stats.scanned} messages (${stats.skipped} already categorized, ${stats.failed} failed)...`);
 
-  return fullMessages;
+  } while (nextPageToken && !isDone());
 }
 
 export async function ensureLabelsExist(auth: OAuth2Client): Promise<Record<string, string>> {
@@ -106,26 +118,24 @@ export async function ensureLabelsExist(auth: OAuth2Client): Promise<Record<stri
   return labelMap;
 }
 
-export async function applyLabel(auth: OAuth2Client, messageId: string, labelId: string) {
+// Returns whether the label was applied
+export async function applyLabel(auth: OAuth2Client, messageId: string, labelId: string): Promise<boolean> {
     const gmail = google.gmail({ version: 'v1', auth });
-    
-    // We expect labelId to be passed directly now to avoid re-fetching
-    // But if we want to keep signature compatible or robust, we can adjust.
-    // Let's change the signature to take labelId for efficiency, 
-    // since we will have the map in main().
-    
+
     try {
-        await gmail.users.messages.modify({
+        await withRetry(`Label ${messageId}`, () => gmail.users.messages.modify({
             userId: 'me',
             id: messageId,
             requestBody: {
                 addLabelIds: [labelId],
                 // removed removeLabelIds: ['UNREAD'] to preserve unread status
             }
-        });
-        console.log(`Applied label ID ${labelId} to message ${messageId}`);
+        }));
+        return true;
     } catch (error) {
-        console.error(`Failed to apply label ${labelId}`, error);
+        if (error instanceof QuotaExhaustedError) throw error;
+        console.error(`Failed to apply label ${labelId} to ${messageId}: ${shortError(error)}`);
+        return false;
     }
 }
 
